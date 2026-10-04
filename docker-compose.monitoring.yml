@@ -1,0 +1,58 @@
+# Optional monitoring stack: Pushgateway + Prometheus + Grafana.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+# or add this to .env so a plain `docker compose up -d` includes it:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.monitoring.yml
+#
+# Grafana: http://<host>:3000 (admin / GRAFANA_ADMIN_PASSWORD, default "admin")
+# The bundled grafana-dashboard.json is provisioned automatically.
+
+services:
+  crowdsec-blocklist-import:
+    environment:
+      - METRICS_ENABLED=true
+      - METRICS_PUSHGATEWAY_URL=pushgateway:9091
+    depends_on:
+      - pushgateway
+
+  pushgateway:
+    image: prom/pushgateway:latest
+    container_name: blocklist-pushgateway
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9091:9091"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: blocklist-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-90d}
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - pushgateway
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: blocklist-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana-dashboard.json:/var/lib/grafana/dashboards/blocklist-import.json:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:

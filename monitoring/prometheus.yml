@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 60s
+
+scrape_configs:
+  # honor_labels keeps the job/instance labels the importer pushes with
+  - job_name: pushgateway
+    honor_labels: true
+    static_configs:
+      - targets: ["pushgateway:9091"]
