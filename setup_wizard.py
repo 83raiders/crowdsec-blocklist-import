@@ -140,16 +140,25 @@ def prompt_yn(prompt, default=True):
             raise KeyboardInterrupt
 
 
-def prompt_input(prompt, default="", secret=False):
-    """Prompt for string input. Uses getpass when secret=True."""
+def prompt_input(prompt, default="", secret=False, confirm=False):
+    """Prompt for string input. Uses getpass when secret=True.
+
+    getpass shows nothing while typing, so a double paste goes unnoticed;
+    confirm=True asks for a new secret twice and re-prompts on mismatch.
+    """
     display_default = "****" if (secret and default) else default
     hint = f" [{display_default}]" if display_default else ""
     try:
-        if secret:
-            val = getpass.getpass(f"{prompt}{hint}: ")
-        else:
+        if not secret:
             val = input(f"{prompt}{hint}: ").strip()
-        return val if val else default
+            return val if val else default
+        while True:
+            val = getpass.getpass(f"{prompt} (input hidden){hint}: ").strip()
+            if not val or not confirm:
+                return val if val else default
+            if getpass.getpass(f"{prompt} (confirm): ").strip() == val:
+                return val
+            print("  Values did not match, try again.")
     except (KeyboardInterrupt, EOFError):
         print()
         raise KeyboardInterrupt
@@ -203,6 +212,7 @@ def menu_crowdsec_connection(state):
         "  CROWDSEC_MACHINE_PASSWORD",
         default=state.get("CROWDSEC_MACHINE_PASSWORD", ""),
         secret=True,
+        confirm=True,
     )
 
     print()

@@ -1,4 +1,3 @@
-version: "3.8"
 
 services:
   crowdsec-blocklist-import:
@@ -6,24 +5,30 @@ services:
     # Or use pre-built:
     # image: ghcr.io/wolffcatskyy/crowdsec-blocklist-import:latest
     container_name: crowdsec-blocklist-import
-    restart: "no"  # Run once and exit
+    restart: unless-stopped  # Long-lived daemon; see INTERVAL below
 
+    # LAPI URL, bouncer key, machine credentials and feed toggles
+    # (create with: python setup_wizard.py, or copy .env.example)
+    env_file: .env
+
+    # Defaults below apply only when .env does not set the variable
     environment:
-      # CrowdSec container name (must be accessible via Docker socket)
-      - CROWDSEC_CONTAINER=crowdsec
+      # Built-in scheduler: seconds between runs. Keep it non-zero with
+      # restart: unless-stopped, or the container restart-loops.
+      - INTERVAL=${INTERVAL:-3600}
 
       # How long decisions last (run script daily to refresh)
-      - DECISION_DURATION=24h
+      - DECISION_DURATION=${DECISION_DURATION:-24h}
 
       # Max total decisions — prevents bouncer overload on embedded devices (#21)
       # UDM SE/Pro: 50000 | UDR: 15000 | USG: 8000 | Linux server: 0 (unlimited)
-      - MAX_DECISIONS=40000
+      - MAX_DECISIONS=${MAX_DECISIONS:-0}
 
       # Logging (DEBUG, INFO, WARN, ERROR)
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
 
       # Timezone
-      - TZ=America/New_York
+      - TZ=${TZ:-America/New_York}
 
       # Anonymous telemetry (enabled by default, set to false to disable)
       - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-true}
@@ -31,7 +36,3 @@ services:
       # Prometheus metrics (enabled by default, pushing to localhost:9091)
       - METRICS_ENABLED=${METRICS_ENABLED:-true}
       - METRICS_PUSHGATEWAY_URL=${METRICS_PUSHGATEWAY_URL:-localhost:9091}
-
-    volumes:
-      # Docker socket for accessing CrowdSec container
-      - /var/run/docker.sock:/var/run/docker.sock:ro
