@@ -140,16 +140,18 @@ def prompt_yn(prompt, default=True):
             raise KeyboardInterrupt
 
 
-def prompt_input(prompt, default="", secret=False, confirm=False):
+def prompt_input(prompt, default="", secret=False, confirm=False, echo=False):
     """Prompt for string input. Uses getpass when secret=True.
 
     getpass shows nothing while typing, so a double paste goes unnoticed;
     confirm=True asks for a new secret twice and re-prompts on mismatch.
+    echo=True shows a secret as it is typed (for long pasted API keys)
+    while still masking the saved default.
     """
     display_default = "****" if (secret and default) else default
     hint = f" [{display_default}]" if display_default else ""
     try:
-        if not secret:
+        if not secret or echo:
             val = input(f"{prompt}{hint}: ").strip()
             return val if val else default
         while True:
@@ -199,6 +201,7 @@ def menu_crowdsec_connection(state):
         "  CROWDSEC_LAPI_KEY",
         default=state.get("CROWDSEC_LAPI_KEY", ""),
         secret=True,
+        echo=True,
     )
 
     print()
@@ -376,7 +379,7 @@ def menu_advanced_settings(state):
             print("  Leave blank to use the free public mirror by @borestad (no key needed).")
             print("  Provide a direct API key for higher rate limits and fresher data.")
             print()
-            state[key] = prompt_input(f"  {label}", default=state.get(key, default), secret=True)
+            state[key] = prompt_input(f"  {label}", default=state.get(key, default), secret=True, echo=True)
         else:
             state[key] = prompt_input(f"  {label}", default=state.get(key, default))
 
