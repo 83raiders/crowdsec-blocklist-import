@@ -1,0 +1,7 @@
+apiVersion: 1
+
+providers:
+  - name: crowdsec-blocklist-import
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

@@ -51,6 +51,11 @@ PRESET_MINIMAL = {"ENABLE_IPSUM", "ENABLE_SPAMHAUS", "ENABLE_FIREHOL",
                   "ENABLE_EMERGING_THREATS", "ENABLE_DSHIELD"}
 PRESET_PRIVACY = VALID_ENABLE_VARS - {"ENABLE_TOR", "ENABLE_SCANNERS"}
 
+# Keys whose docker-compose.yml fallback differs from the importer default
+# (INTERVAL 3600 vs 0, MAX_DECISIONS 40000 vs 0): an explicit choice must be
+# written to .env even when it matches DEFAULTS, or compose would override it.
+COMPOSE_FALLBACK_KEYS = {"INTERVAL", "MAX_DECISIONS"}
+
 # Default values used when generating .env (omit keys that match these)
 DEFAULTS = {
     "CROWDSEC_LAPI_URL":    "http://localhost:8080",
@@ -140,16 +145,28 @@ def prompt_yn(prompt, default=True):
             raise KeyboardInterrupt
 
 
-def prompt_input(prompt, default="", secret=False):
-    """Prompt for string input. Uses getpass when secret=True."""
+def prompt_input(prompt, default="", secret=False, confirm=False):
+    """Prompt for string input. Uses getpass when secret=True.
+
+    getpass shows nothing while typing, so a double or truncated paste goes
+    unnoticed; confirm=True asks for a new secret twice, re-prompts on
+    mismatch, and reports the length so a bad paste is visible without
+    ever echoing the value.
+    """
     display_default = "****" if (secret and default) else default
     hint = f" [{display_default}]" if display_default else ""
     try:
-        if secret:
-            val = getpass.getpass(f"{prompt}{hint}: ")
-        else:
+        if not secret:
             val = input(f"{prompt}{hint}: ").strip()
-        return val if val else default
+            return val if val else default
+        while True:
+            val = getpass.getpass(f"{prompt} (input hidden){hint}: ").strip()
+            if not val or not confirm:
+                return val if val else default
+            if getpass.getpass(f"{prompt} (confirm): ").strip() == val:
+                print(f"  Saved ({len(val)} characters).")
+                return val
+            print("  Values did not match, try again.")
     except (KeyboardInterrupt, EOFError):
         print()
         raise KeyboardInterrupt
@@ -190,6 +207,7 @@ def menu_crowdsec_connection(state):
         "  CROWDSEC_LAPI_KEY",
         default=state.get("CROWDSEC_LAPI_KEY", ""),
         secret=True,
+        confirm=True,
     )
 
     print()
@@ -203,6 +221,7 @@ def menu_crowdsec_connection(state):
         "  CROWDSEC_MACHINE_PASSWORD",
         default=state.get("CROWDSEC_MACHINE_PASSWORD", ""),
         secret=True,
+        confirm=True,
     )
 
     print()
@@ -322,8 +341,8 @@ def menu_advanced_settings(state):
             ("DECISION_DURATION",       "Decision duration (e.g. 24h, 7d)",    "24h"),
             ("BATCH_SIZE",              "Batch size (IPs per API call)",         "1000"),
             ("LOG_LEVEL",               "Log level (DEBUG/INFO/WARNING/ERROR)",  "INFO"),
-            ("INTERVAL",                "Daemon interval in seconds (0=one-shot)","0"),
-            ("MAX_DECISIONS",           "Max decisions to import (0=unlimited)", "0"),
+            ("INTERVAL",                "Interval in seconds (0=one-shot; unset=3600 in compose)", ""),
+            ("MAX_DECISIONS",           "Max decisions (0=unlimited; unset=40000 in compose)", ""),
             ("ABUSEIPDB_API_KEY",       "AbuseIPDB direct API key (optional)",   ""),
             ("WEBHOOK_URL",             "Webhook URL for notifications",          ""),
             ("WEBHOOK_TYPE",            "Webhook type (generic/discord/slack)",   "generic"),
@@ -366,7 +385,7 @@ def menu_advanced_settings(state):
             print("  Leave blank to use the free public mirror by @borestad (no key needed).")
             print("  Provide a direct API key for higher rate limits and fresher data.")
             print()
-            state[key] = prompt_input(f"  {label}", default=state.get(key, default), secret=True)
+            state[key] = prompt_input(f"  {label}", default=state.get(key, default), secret=True, confirm=True)
         else:
             state[key] = prompt_input(f"  {label}", default=state.get(key, default))
 
@@ -411,7 +430,7 @@ def _build_env_lines(state):
     ]
     for key in ("BATCH_SIZE", "FETCH_TIMEOUT", "MAX_RETRIES", "MAX_DECISIONS"):
         val = state.get(key)
-        if val and val != DEFAULTS.get(key, ""):
+        if val and (val != DEFAULTS.get(key, "") or key in COMPOSE_FALLBACK_KEYS):
             lines.append(f"{key}={val}")
 
     lines += [
@@ -420,7 +439,7 @@ def _build_env_lines(state):
     ]
     for key in ("LOG_LEVEL", "LOG_TIMESTAMPS", "INTERVAL"):
         val = state.get(key)
-        if val and val != DEFAULTS.get(key, ""):
+        if val and (val != DEFAULTS.get(key, "") or key in COMPOSE_FALLBACK_KEYS):
             lines.append(f"{key}={val}")
 
     lines += [
