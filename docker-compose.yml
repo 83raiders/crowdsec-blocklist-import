@@ -8,8 +8,11 @@ services:
     restart: unless-stopped  # Long-lived daemon; see INTERVAL below
 
     # LAPI URL, bouncer key, machine credentials and feed toggles
-    # (create with: python setup_wizard.py, or copy .env.example)
-    env_file: .env
+    # (create with: python setup_wizard.py, or copy .env.example).
+    # Optional, so `docker compose up` still starts without one.
+    env_file:
+      - path: .env
+        required: false
 
     # Defaults below apply only when .env does not set the variable
     environment:
@@ -22,7 +25,7 @@ services:
 
       # Max total decisions — prevents bouncer overload on embedded devices (#21)
       # UDM SE/Pro: 50000 | UDR: 15000 | USG: 8000 | Linux server: 0 (unlimited)
-      - MAX_DECISIONS=${MAX_DECISIONS:-0}
+      - MAX_DECISIONS=${MAX_DECISIONS:-40000}
 
       # Logging (DEBUG, INFO, WARN, ERROR)
       - LOG_LEVEL=${LOG_LEVEL:-INFO}

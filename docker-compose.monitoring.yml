@@ -5,7 +5,11 @@
 # or add this to .env so a plain `docker compose up -d` includes it:
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.monitoring.yml
 #
-# Grafana: http://<host>:3000 (admin / GRAFANA_ADMIN_PASSWORD, default "admin")
+# Grafana: http://localhost:3000 (user admin, password GRAFANA_ADMIN_PASSWORD).
+# GRAFANA_ADMIN_PASSWORD has no default: compose refuses to start until it is
+# set in .env. Grafana listens on 127.0.0.1 only; to reach it from other
+# machines set GRAFANA_BIND=0.0.0.0 (or a LAN IP), ideally behind a reverse
+# proxy with TLS. Pushgateway and Prometheus stay on localhost.
 # The bundled grafana-dashboard.json is provisioned automatically.
 
 services:
@@ -43,13 +47,13 @@ services:
     container_name: blocklist-grafana
     restart: unless-stopped
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana-dashboard.json:/var/lib/grafana/dashboards/blocklist-import.json:ro
       - grafana-data:/var/lib/grafana
     ports:
-      - "3000:3000"
+      - "${GRAFANA_BIND:-127.0.0.1}:3000:3000"
     depends_on:
       - prometheus
 
